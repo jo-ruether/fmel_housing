@@ -1,0 +1,9 @@
+.idea
+
+table/config.json
+
+*__pycache__*
+
+
+*.pyc
+*.ipynb
