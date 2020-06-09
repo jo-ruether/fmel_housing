@@ -2,7 +2,7 @@ from selenium import webdriver
 from time import sleep
 import utils
 import re
-
+import configparser
 
 def launch_driver():
     options = webdriver.ChromeOptions()
@@ -15,13 +15,13 @@ def launch_driver():
     return driver
 
 
-def login(driver):
+def login(driver, username, password):
     # Logs in with my credentials on the FMEL Login page
     URL_login = 'https://accommodation.fmel.ch/StarRezPortal/AE18865B/7/8/Login-Login?IsContact=False'
     driver.get(URL_login)
     driver.find_element_by_class_name('cc-allow').click()
-    driver.find_element_by_name('Username').send_keys('jlruther@kth.se')
-    driver.find_element_by_name('Password').send_keys('Mangobaum19')
+    driver.find_element_by_name('Username').send_keys(username)
+    driver.find_element_by_name('Password').send_keys(password)
     driver.find_element_by_xpath('//*[@title="Login"]').click()
 
 
@@ -97,8 +97,14 @@ def scrape_id(driver):
 
 
 if __name__ == "__main__":
+
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    username = config['FMEL']['username']
+    password = config['FMEL']['password']
+
     driver = launch_driver()
-    login(driver)
+    login(driver, username, password)
     sleep(3)
     move_ins = navigate_to_listings(driver)
     print(move_ins)

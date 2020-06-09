@@ -6,6 +6,10 @@
 
 
 
+### Configure
+
+Rename `config_sample.ini` to `config.ini` and fill in your login credentials.
+
 ### Set Up Chromium Browser Driver
 
 1. Install Chromium Web Browser (not the standard snap version of Chromium)
@@ -16,8 +20,6 @@
 
 4. Make it executable with `chmod +x chromedriver`
 
-   
-   
    
    
    
