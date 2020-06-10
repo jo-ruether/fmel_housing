@@ -1,13 +1,16 @@
 from selenium import webdriver
+
 from time import sleep
 import utils
 import re
 import configparser
+import time
+
 
 def launch_driver():
     options = webdriver.ChromeOptions()
-    #options.add_argument('--headless')
-    #options.add_argument('--no-sandbox')
+    # options.add_argument('--headless')
+    # options.add_argument('--no-sandbox')
     # driverpath = 'C:\\Users\\Johannes\\Downloads\\chromedriver_win32\\chromedriver'
     # driverpath = '/usr/lib/chromium-browser/chromedriver' # On Hetzner server
     driverpath = 'chromedriver'
@@ -34,18 +37,25 @@ def navigate_to_listings(driver):
     save_continue_button[0].click()
     
     # Waiting for page to load. There must be a better way to do this...
-    sleep(2)    
+    sleep(1)
 
+    # Keep results in a dict that maps move-in dates to rooms
     room_dict = {}
 
-    # Click the Apply button for all move-in dates 
+    date_elements = driver.find_elements_by_class_name('gap-below')
+    dates = []
+    for elem in date_elements:
+        dates.append(elem.text.split(" ")[1])
+
+    # Click the 'Apply' button for all move-in dates
     apply_buttons = driver.find_elements_by_xpath('//*[@title="Apply"]')
-    for button in apply_buttons:
+    for b in range(len(apply_buttons)):
         sleep(1)
-        button.click()
-        sleep(3)
-        (date, domiciles) = scrape_listings(driver)
-        room_dict[date] = domiciles
+        apply_buttons = driver.find_elements_by_xpath('//*[@title="Apply"]')
+        apply_buttons[b].click()
+        sleep(2)
+        # For every move-in date, scrape all available rooms
+        room_dict[dates[b]] = scrape_listings(driver)
         sleep(1.5)
         driver.execute_script("window.history.go(-1)")
 
@@ -53,51 +63,48 @@ def navigate_to_listings(driver):
 
 
 def scrape_listings(driver):
-    "Returns the move in date and its houses for date link"
-    houses = []
-    # element = driver.find_elements_by_xpath("//span[contains(text(), 'Falaises')]")
-    # if len(element) != 0:
-    #     houses.append("Falaises")
-    url = driver.current_url
-    url = url.split("DateStart=")[1]
-    date = url.split("&DateEnd=")[0]
-    date = re.sub('%20', '', date)
-    # date = date.split("%20")
-    date = utils.convert_string_to_date(date)
+    """
+    Returns the move in date and available rooms for date link.
+    """
 
+    # This page shows all student houses for which there are rooms available.
+    # Underneath every house there is a select button. Click them one by one
     select_buttons = driver.find_elements_by_xpath('//*[@title="Select"]')
-    no_sel_buttons = len(select_buttons)
-    domiciles = []
-    for i in range(no_sel_buttons):
-        sleep(2)
+    room_names = []
+    for b in range(len(select_buttons)):
+        sleep(1)
         select_buttons = driver.find_elements_by_xpath('//*[@title="Select"]')
-        select_buttons[i].click()
-        sleep(3)
-        domiciles = domiciles + scrape_id(driver)
-        sleep(3)
+        select_buttons[b].click()
+        sleep(2)
+        # For every houses page, find all available rooms
+        room_names = room_names + get_room_names(driver)
+        sleep(2)
         driver.execute_script("window.history.go(-1)")
-    return date, domiciles
+    return room_names
 
 
-def scrape_id(driver):
-    "Scrapes all unique room names for one student house"
-    domiciles = []
+def get_room_names(driver):
+    """
+    Scrapes all unique room names for one student house.
+    Every room name consists of the name of the house and a room number.
+    """
+    room_names = []
     try:
-        sleep(5)
+        sleep(3)
         results_list = driver.find_element_by_class_name('results-list')
         titles = results_list.find_elements_by_class_name('title')
-
         for title in titles:
-            domicile = title.text
-            print(domicile)
-            domiciles.append(domicile)
+            room_name = title.text
+            print(room_name)
+            room_names.append(room_name)
     except:
         pass
-    return domiciles
+    return room_names
 
 
 if __name__ == "__main__":
 
+    # Read username and password for the FMEL page from a config file
     config = configparser.ConfigParser()
     config.read('config.ini')
     username = config['FMEL']['username']
@@ -108,15 +115,3 @@ if __name__ == "__main__":
     sleep(3)
     move_ins = navigate_to_listings(driver)
     print(move_ins)
-
-#<input class="medium ui-input" id="5b4c8ff3c3184a50aa89ae4b2622971e_input" name="Username" onchange="starrez.library.controls.FlagChanged($('#5b4c8ff3c3184a50aa89ae4b2622971e'));" spellcheck="false" type="text" value="">
-#<input class="medium ui-dont-track ui-input" id="291045ab3d7a49598ab6452fcbf1592b_input" name="Password" onchange="" spellcheck="false" type="password" value="">
-
-
-
-
-
-
-
-
-#39 8fd6dd0962f4842bba80d07ef7b0a1c > div:nth-child(2) > div.actions.ui-actions > button
