@@ -65,16 +65,24 @@ class FMELBot:
         context.user_data['selected_houses'] = []
         context.user_data['notifications'] = False
 
+    def print_context(self, update, context):
+        update.message.reply_text(context.user_data['selected_houses'])
+
     def init_bot(self, TOKEN):
         """
         Initializes the telegram bot and returns an updater and dispatcher.
         """
         updater = Updater(TOKEN, use_context=True)
         dispatcher = updater.dispatcher
+
+        # Add handlers for special commands, e.g. "/start"
         dispatcher.add_handler(CommandHandler('start', self.start))
         dispatcher.add_handler(CommandHandler('select_houses', self.select_houses))
         dispatcher.add_handler(CommandHandler('update_listings', self.update_listings))
         dispatcher.add_handler(CommandHandler('show_listings', self.show_listings))
+        dispatcher.add_handler(CommandHandler('print_context', self.print_context))
+
+        # Add handler for button menu for house selection
         dispatcher.add_handler(CallbackQueryHandler(self.button)),
 
         updater.start_polling()
@@ -95,6 +103,7 @@ class FMELBot:
         self.listings = utils.room_dict_to_df(room_dict)
 
     def show_listings(self, update, context):
+
         """
         Messages the latest saved listings that match the users settings.
         """
@@ -161,6 +170,7 @@ class FMELBot:
         reply_markup = InlineKeyboardMarkup(utils.build_menu(context.user_data['buttons'],
                                                              n_cols=2))
         update.message.reply_text("Choose the house you want to receive updates about", reply_markup=reply_markup)
+
 
     # def timed_updates(self, update, context):
     #     """

@@ -17,15 +17,13 @@ def init_driver():
 
 
 class FMELScraper:
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
+    def __init__(self):
         self.driver = init_driver()
 
         # Keep results in a dict that maps move-in dates to rooms
         self.room_dict = {}
 
-    def login(self):
+    def login(self, username, password):
         # Move to login interface
         self.driver.get('https://fmel.ch/en/')
         book_now_link = self.driver.find_element_by_link_text("Book Now")
@@ -39,7 +37,7 @@ class FMELScraper:
         self.driver.find_element_by_name('Password').send_keys(password)
         self.driver.find_element_by_xpath('//*[@title="Login"]').click()
 
-    def navigate_to_listings(self):
+    def get_listings(self):
 
         # Move to the "book now" page
         book_now_link = self.driver.find_element_by_link_text("Book now")
@@ -53,7 +51,7 @@ class FMELScraper:
         date_elements = self.driver.find_elements_by_class_name('gap-below')
         dates = []
         for elem in date_elements:
-            dates.append(elem.text.split(" ")[1])
+            dates.append(elem.text.split(": ")[1])
 
         # Click the 'Apply' button for all move-in dates
         apply_buttons = self.driver.find_elements_by_xpath('//*[@title="Apply"]')
@@ -67,6 +65,8 @@ class FMELScraper:
             sleep(1.5)
             self.driver.execute_script("window.history.go(-1)")
 
+        return self.room_dict
+
     def scrape_listings(self):
         """
         Returns the move in date and available rooms for date link.
@@ -74,6 +74,7 @@ class FMELScraper:
 
         # This page shows all student houses for which there are rooms available.
         # Underneath every house there is a select button. Click them one by one
+        sleep(2)
         select_buttons = self.driver.find_elements_by_xpath('//*[@title="Select"]')
         room_names = []
         for b in range(len(select_buttons)):
@@ -116,6 +117,6 @@ if __name__ == "__main__":
     scraper = FMELScraper(username, password)
     scraper.login()
     sleep(2)
-    scraper.navigate_to_listings()
+    scraper.get_listings()
 
     print(scraper.room_dict)
