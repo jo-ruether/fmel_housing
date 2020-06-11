@@ -1,25 +1,53 @@
 import re
 from time import strptime
 from datetime import date
+import pandas as pd
 
 
-def convert_listings_to_string(listings):
+def room_dict_to_df(room_dict):
+
+    # Initialize dataframe containing all listings
+    df = pd.DataFrame()
+
+    # Convert dict of formate {date: [rooms]} to dataframe where every row
+    # is a room with house, room_number and move-in date
+    for date, rooms in room_dict.items():
+        for room_id in rooms:
+            house = room_id.split(' ')[0]
+            room_number = room_id.split(' ', 1)[1]
+
+            df = df.append(dict(house=house,
+                                room_number=room_number,
+                                date=date),
+                           ignore_index=True)
+    return df
+
+
+def listings_to_string(listings):
+    """
+    Convert the pandas dataframe of listings to a messageable string.
+    """
     message = ""
-    for date, domiciles in listings.items():
-        message += str(date) + "\n"
-        for domicile in domiciles:
-            message += " \ " + str(domicile) + "\n"
-        message += "\n"
+    dates = []
+    for idx in listings.index:
+
+        if listings['date'][idx] not in dates:
+            message += f"\n{listings['date'][idx]}\n"
+            message += "----------\n"
+            dates.append(listings['date'][idx])
+        message += f"{listings['house'][idx]} {listings['room_number'][idx]}\n"
     if not message:
         message = "empty"
     return message
-    
+
+
 def convert_list_to_message(list):
     message = ""
     for item in list:
         message += str(item) + " \n"
     return message
-        
+
+
 def build_menu(buttons,
                n_cols,
                header_buttons=None,
@@ -30,6 +58,7 @@ def build_menu(buttons,
     if footer_buttons:
         menu.append(footer_buttons)
     return menu
+
 
 def convert_string_to_date(date_string):
     """
