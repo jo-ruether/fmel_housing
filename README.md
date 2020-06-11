@@ -6,6 +6,7 @@
 
 * selenium `conda install selenium` or `pip install selenium`
 * python-telegram-bot `conda install -c conda-forge python-telegram-bot` or `pip install python-telegram-bot`
+* pandas `conda install pandas` or `pip install pandas`
 
 ### Config file
 
