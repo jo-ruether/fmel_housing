@@ -32,8 +32,8 @@ def listings_to_string(listings):
     for idx in listings.index:
 
         if listings['date'][idx] not in dates:
-            message += f"\n{listings['date'][idx]}\n"
-            message += "----------\n"
+            message += f"*\n{listings['date'][idx]}\n*"
+            message += "------------\n"
             dates.append(listings['date'][idx])
         message += f"{listings['house'][idx]} {listings['room_number'][idx]}\n"
     if not message:

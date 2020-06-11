@@ -44,7 +44,7 @@ class FMELScraper:
     def get_listings(self):
 
         self.driver = init_driver(self.headless)
-        sleep(10)
+        sleep(1)
         self.login()
         sleep(2)
 

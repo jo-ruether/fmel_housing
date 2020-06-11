@@ -1,7 +1,9 @@
 
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 from uuid import uuid4
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction, ParseMode
+from telegram.ext.dispatcher import run_async
+
 import logging
 import re
 from time import sleep, localtime
@@ -13,6 +15,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 import configparser
+from threading import Thread
+import queue
+import time
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -35,7 +40,6 @@ class FMELBot:
 
         self.fmel_scraper = fmel.FMELScraper(username,  password)
         self.init_bot(TOKEN)
-        #self.updater, self.dispatcher = self.init_bot(TOKEN)
 
         columns = ['house', 'room_number', 'date']
         self.listings = pd.DataFrame(columns=columns)
@@ -60,7 +64,6 @@ class FMELBot:
             InlineKeyboardButton("Yverdon", callback_data="Yverdon"),
             InlineKeyboardButton("Zenith", callback_data="Zenith")
         ]
-
         context.user_data['buttons'] = buttons
         context.user_data['selected_houses'] = []
         context.user_data['notifications'] = False
@@ -77,6 +80,7 @@ class FMELBot:
 
         # Add handlers for special commands, e.g. "/start"
         dispatcher.add_handler(CommandHandler('start', self.start))
+        dispatcher.add_handler(CommandHandler('test', self.test))
         dispatcher.add_handler(CommandHandler('select_houses', self.select_houses))
         dispatcher.add_handler(CommandHandler('update_listings', self.update_listings))
         dispatcher.add_handler(CommandHandler('show_listings', self.show_listings))
@@ -88,14 +92,29 @@ class FMELBot:
         updater.start_polling()
         updater.idle()
 
-        #return updater, dispatcher
+    def some_fun(self):
+        dict1 = {'hallo': 'peter'}
 
+        sleep(10)
+        print('------------')
+        print('-HAD SOME FUN-')
+        print('------------')
+        return dict1
+
+    def test(self, update, context):
+        print('------------')
+        print('-TEEEST-')
+        print('------------')
+
+    @run_async
     def update_listings(self, update, context):
         """
         Fetches the current listings from the FMEL site and stores them to self.listings
         """
         # Scrape all the latest entries
         room_dict = self.fmel_scraper.get_listings()
+
+        print(room_dict)
         self.listings = utils.room_dict_to_df(room_dict)
 
     def show_listings(self, update, context):
@@ -114,7 +133,7 @@ class FMELBot:
             update.message.reply_text("Use /start to initialize the bot.")
 
         message = utils.listings_to_string(filtered_listings)
-        update.message.reply_text(message)
+        update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
 
     def button(self, update, context):
         """
@@ -169,18 +188,18 @@ class FMELBot:
                                                              n_cols=2))
         update.message.reply_text("Choose the house you want to receive updates about", reply_markup=reply_markup)
 
-
+    @run_async
     def timed_updates(self, update, context):
         """
         Fetches listings in regular intervals by calling self.update_listings which updates self.listings.
+        To avoid too regular polling of the FMEL server, time update intervals are randomized.
+        Update intervals are changed according to the time of the day.
+
+        This function starts a separate thread that runs permanently
         """
+
         pass
     # def timed_updates(self, update, context):
-    #     """
-    #     Fetches listings in regular intervals by calling self.update_listings which updates self.listings.
-    #     To avoid too regular polling of the FMEL server, time update intervals are randomized.
-    #     (Update intervals might as well be set to a fixed value but I am paranoid about this.)
-    #     Update intervals are changed according to the time of the day.
     #
     #     There is only one instance of this function running, providing updates for all users!
     #
