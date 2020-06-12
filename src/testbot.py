@@ -15,7 +15,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 import configparser
-from threading import Thread
+import threading
 import queue
 import time
 
@@ -38,11 +38,15 @@ class FMELBot:
         password = config['FMEL']['password']
         TOKEN = config['TelegramBot']['token']
 
+        # Initialize FMEL Scraper and bot
         self.fmel_scraper = fmel.FMELScraper(username,  password)
         self.init_bot(TOKEN)
 
+        # Initialize Dataframe that stores all available rooms
         columns = ['house', 'room_number', 'date']
         self.listings = pd.DataFrame(columns=columns)
+        self.booked = pd.DataFrame(columns=columns)
+        self.published = pd.DataFrame(columns=columns)
 
     def start(self, update, context):
         update.message.reply_text('Welcome to the super-secret FMEL Bot!')
@@ -68,9 +72,6 @@ class FMELBot:
         context.user_data['selected_houses'] = []
         context.user_data['notifications'] = False
 
-    def print_context(self, update, context):
-        update.message.reply_text(context.user_data['selected_houses'])
-
     def init_bot(self, TOKEN):
         """
         Initializes the telegram bot and returns an updater and dispatcher.
@@ -80,42 +81,16 @@ class FMELBot:
 
         # Add handlers for special commands, e.g. "/start"
         dispatcher.add_handler(CommandHandler('start', self.start))
-        dispatcher.add_handler(CommandHandler('test', self.test))
         dispatcher.add_handler(CommandHandler('select_houses', self.select_houses))
-        dispatcher.add_handler(CommandHandler('update_listings', self.update_listings))
+        dispatcher.add_handler(CommandHandler('update', self.manual_update))
         dispatcher.add_handler(CommandHandler('show_listings', self.show_listings))
-        dispatcher.add_handler(CommandHandler('print_context', self.print_context))
+        dispatcher.add_handler(CommandHandler('notify_me', self.notify_me))
 
         # Add handler for button menu for house selection
         dispatcher.add_handler(CallbackQueryHandler(self.button)),
 
         updater.start_polling()
         updater.idle()
-
-    def some_fun(self):
-        dict1 = {'hallo': 'peter'}
-
-        sleep(10)
-        print('------------')
-        print('-HAD SOME FUN-')
-        print('------------')
-        return dict1
-
-    def test(self, update, context):
-        print('------------')
-        print('-TEEEST-')
-        print('------------')
-
-    @run_async
-    def update_listings(self, update, context):
-        """
-        Fetches the current listings from the FMEL site and stores them to self.listings
-        """
-        # Scrape all the latest entries
-        room_dict = self.fmel_scraper.get_listings()
-
-        print(room_dict)
-        self.listings = utils.room_dict_to_df(room_dict)
 
     def show_listings(self, update, context):
         """
@@ -139,10 +114,10 @@ class FMELBot:
         """
         Handles the pressed buttons with houses that should go on the watchlist. Adds the according house to the
         watchlist and adds a check mark to the button symbol in the bot.
-        
+
         First reads the callback data (i.e. the information on the pressed button).
         Then iterates over all existing buttons to find the corresponding button instance.
-        Checks, if the corresponding house is already on the list of selected houses checks/unchecks it from that 
+        Checks, if the corresponding house is already on the list of selected houses checks/unchecks it from that
         list accordingly.
 
         Args:
@@ -153,7 +128,7 @@ class FMELBot:
 
         """
         selected_option = update.callback_query.data # Read the callback data that was received
-        
+
         for i, button in enumerate(context.user_data['buttons']):
             if selected_option == button.callback_data: # Check what button the input came frome
                 # Check if house is already on the list, i.e. if it should be checked in or checked out
@@ -175,7 +150,7 @@ class FMELBot:
 
     def select_houses(self, update, context):
         """
-        Opens a Keyboard markup that lets you select the houses that you wanna track. 
+        Opens a Keyboard markup that lets you select the houses that you wanna track.
 
         Args:
             update:
@@ -188,17 +163,85 @@ class FMELBot:
                                                              n_cols=2))
         update.message.reply_text("Choose the house you want to receive updates about", reply_markup=reply_markup)
 
+    def update_listings(self, update, context):
+        """
+        Fetches the current listings from the FMEL site and stores them to self.listings
+        """
+        # Scrape all the latest entries
+        try:
+            room_dict = self.fmel_scraper.get_listings()
+            print(room_dict)
+            self.listings = utils.room_dict_to_df(room_dict)
+        except:
+            update.message.reply_text("Error during update")
+
+    @run_async
+    def notify_me(self, update, context):
+        """
+        Handles notification mechanism:
+        If notifications are enabled, this thread checks for booked or published
+        rooms that are written by self.timed_updates().
+        """
+
+        while True:
+            if not published.empty:
+                update.message.reply_text('New room(s) were published:')
+                message = utils.listings_to_string(published)
+                update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+            if not booked.empty:
+                update.message.reply_text('Room(s) were booked:')
+                message = utils.listings_to_string(booked)
+                update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
+            sleep(10)
+
     @run_async
     def timed_updates(self, update, context):
         """
+
+        Triggers periodic scraping of listings on the FMEL page
+        Compares old listings with new listings and informs user about changes
         Fetches listings in regular intervals by calling self.update_listings which updates self.listings.
         To avoid too regular polling of the FMEL server, time update intervals are randomized.
         Update intervals are changed according to the time of the day.
 
-        This function starts a separate thread that runs permanently
+        This function starts a separate thread that runs permanently.
         """
 
+        # Determine the update interval based on estimated FMEL office hours
+        mean_ui_day = 300
+        mean_ui_night = 3600
+        mytime = localtime()
+        if 6 < mytime.tm_hour < 18:
+            delay = (randint(mean_ui_day*0.8, mean_ui_day*1.2))
+        else:
+            delay = (randint(mean_ui_night*0.8, mean_ui_night*1.2))
+
+        update.message.reply_text(f"Delay until next update: {delay}")
+        update.message.reply_text("Starting a new update")
+
+        # Perform the update
+        old_listings = self.listings
+        self.update_listings()
+
+        # Get difference between old and new listings
+        merge = self.listings.merge(old_listings, how='outer', indicator=True)
+        self.booked = merge.loc[lambda x : x['_merge']=='right_only']
+        self.booked = booked.drop_duplicates(subset=['house', 'room_number'],
+                                        keep='first')
+        self.published = merge.loc[lambda x : x['_merge']=='right_only']
+        self.published = published.drop_duplicates(subset=['house', 'room_number'],
+                                              keep='first')
+
+        threading.Timer(delay, self.timed_updates, [update, context]).start()
         pass
+
+    @run_async
+    def manual_update(self, update, context):
+        """
+        Manually starts an update that is normally triggered peridodically.
+        """
+        self.update_listings(update, context)
+
     # def timed_updates(self, update, context):
     #
     #     There is only one instance of this function running, providing updates for all users!
